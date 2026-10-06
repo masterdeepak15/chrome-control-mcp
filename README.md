@@ -5,13 +5,16 @@ Tool names follow chrome-devtools-mcp, so prompts written for it work here too.
 
 ## Quick start
 
-    npx -y chrome-control-mcp setup
+    npm install -g chrome-control-mcp
+    chrome-control-mcp setup
+
+(or without installing: `npx -y chrome-control-mcp setup`). Run `chrome-control-mcp help` to list all commands.
 
 This installs a small native host, copies the extension to ~/.chrome-control-mcp/extension and adds the MCP to
-Claude Desktop and Claude Code automatically, when they are installed. Then open chrome://extensions, turn on Developer mode, click Load unpacked and pick
-the folder that setup printed. The extension gets its token by itself and turns ON. You paste nothing.
+Claude Desktop and Claude Code automatically, when they are installed. Setup opens chrome://extensions and copies the folder path to your clipboard. Turn on Developer mode, click Load unpacked and paste
+the folder path. The extension gets its token by itself and turns ON. You paste nothing.
 
-Options: --no-claude, --no-claude-desktop, --no-claude-code, --force, --extension-id <id> (add another extension id, for example
+Options: --no-claude, --no-claude-desktop, --no-claude-code, --no-open, --force, --extension-id <id> (add another extension id, for example
 a Chrome Web Store build). Remove everything with `npx chrome-control-mcp uninstall`.
 
 ## Install by hand
@@ -77,9 +80,9 @@ CHROME_BRIDGE_PORT (default 8765), CHROME_BRIDGE_TOKEN (default: saved in ~/.chr
 
 ## Run once, use from many clients
 
-    node dist/index.js serve        (or double-click start-server.cmd)
+    chrome-control-mcp serve        (or npx -y chrome-control-mcp serve)
 
-Starts one server at http://127.0.0.1:8766/mcp (CHROME_BRIDGE_HTTP_PORT to change). Print the URL with token: `node dist/index.js url`.
+Starts one server at http://127.0.0.1:8766/mcp (CHROME_BRIDGE_HTTP_PORT to change). Print the URL with token: `chrome-control-mcp url`.
 Every client connects to that same URL at once:
 
     claude mcp add --transport http chrome-control "<url from the command above>"

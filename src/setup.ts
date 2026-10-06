@@ -34,10 +34,11 @@ interface Opts {
   claudeDesktop: boolean;
   claudeCode: boolean;
   force: boolean;
+  open: boolean;
 }
 function parseArgs(args: string[]): Opts {
   // By default setup also adds the MCP to Claude Desktop and Claude Code when they are installed.
-  const o: Opts = { extensionIds: [DEV_EXTENSION_ID], claudeDesktop: true, claudeCode: true, force: false };
+  const o: Opts = { extensionIds: [DEV_EXTENSION_ID], claudeDesktop: true, claudeCode: true, force: false, open: true };
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === "--all") o.claudeDesktop = o.claudeCode = true;
@@ -47,6 +48,7 @@ function parseArgs(args: string[]): Opts {
     else if (a === "--claude-desktop") o.claudeDesktop = true;
     else if (a === "--claude-code") o.claudeCode = true;
     else if (a === "--force") o.force = true;
+    else if (a === "--no-open") o.open = false;
     else if (a === "--extension-id" || a.startsWith("--extension-id=")) {
       const id = a.includes("=") ? a.split("=")[1] : args[++i];
       if (!/^[a-p]{32}$/.test(id ?? "")) throw new Error(`Invalid extension id "${id}". It must be 32 letters from a to p.`);
@@ -148,6 +150,27 @@ function configureClaudeCode(log: (s: string) => void) {
   else log(`  Could not add it to Claude Code (${msg.trim().split("\n")[0] || "unknown error"}).\n  Run it yourself: claude mcp add chrome-control -- npx -y chrome-control-mcp`);
 }
 
+/** Best effort: copy text to the clipboard. Returns true on success. */
+function copyToClipboard(text: string): boolean {
+  const r = WIN
+    ? spawnSync("clip", { input: text, shell: true })
+    : MAC
+      ? spawnSync("pbcopy", { input: text })
+      : spawnSync("xclip", ["-selection", "clipboard"], { input: text });
+  return r.status === 0;
+}
+
+/** Best effort: open chrome://extensions in Chrome. Returns true on success. */
+function openExtensionsPage(): boolean {
+  const url = "chrome://extensions";
+  const r = WIN
+    ? spawnSync("cmd", ["/c", "start", "", "chrome", url], { stdio: "ignore" })
+    : MAC
+      ? spawnSync("open", ["-a", "Google Chrome", url], { stdio: "ignore" })
+      : spawnSync("google-chrome", [url], { stdio: "ignore" });
+  return r.status === 0;
+}
+
 export function runSetup(args: string[]) {
   const o = parseArgs(args);
   const log = (s: string) => console.log(s);
@@ -170,6 +193,10 @@ export function runSetup(args: string[]) {
   log("\nNext:");
   log("  Open chrome://extensions, turn on Developer mode, click Load unpacked, and pick this folder:");
   log(`  ${EXT_DIR}`);
+  if (o.open) {
+    if (copyToClipboard(EXT_DIR)) log("  (Folder path copied to your clipboard. Paste it in the folder picker.)");
+    if (openExtensionsPage()) log("  (Opened chrome://extensions for you.)");
+  }
   log("  The extension gets its token by itself and turns ON. You do not paste anything.");
   if (!o.claudeDesktop && !o.claudeCode) {
     log("\nClaude was skipped (--no-claude). Run setup again without that flag to add the MCP to Claude.");

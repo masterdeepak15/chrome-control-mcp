@@ -6,7 +6,7 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { createWriteStream, existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
+import { createWriteStream, existsSync, readFileSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { gzipSync } from "node:zlib";
@@ -21,6 +21,29 @@ import { analyzeTrace, Analysis } from "./perf.js";
 
 // Small CLI helpers: `chrome-control-mcp token` and `chrome-control-mcp extension`
 const cmd = process.argv[2];
+const HELP = `chrome-control-mcp: let Claude control your Chrome.
+
+Usage: chrome-control-mcp <command>
+
+  setup        One-time install: native host, extension copy, Claude config. Opens chrome://extensions.
+               Options: --no-claude, --no-claude-desktop, --no-claude-code, --no-open, --force, --extension-id <id>
+  serve        Run one shared server for many clients (http://127.0.0.1:8766/mcp)
+  url          Print the shared server URL with its token
+  token        Print the secret token
+  extension    Print the folder to load in chrome://extensions
+  uninstall    Remove the native host and the extension copy
+  version      Print the version
+  help         Show this help
+
+With no command, it runs as an MCP server over stdio (what Claude launches).`;
+if (cmd === "help" || cmd === "--help" || cmd === "-h" || (cmd === undefined && process.stdin.isTTY)) {
+  console.log(HELP);
+  process.exit(0);
+}
+if (cmd === "version" || cmd === "--version" || cmd === "-v") {
+  console.log(JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version);
+  process.exit(0);
+}
 if (cmd === "token") {
   console.log(loadToken());
   process.exit(0);
