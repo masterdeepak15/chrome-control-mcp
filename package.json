@@ -9,7 +9,7 @@
     "files":  [
                   "dist",
                   "extension",
-                  "README.md", "start-server.cmd"\n  ],
+                  "README.md", "start-server.cmd"],
     "scripts":  {
                     "build":  "tsc \u0026\u0026 node -e \"require(\u0027fs\u0027).chmodSync(\u0027dist/index.js\u0027, 0o755)\"",
                     "prepublishOnly":  "npm run build"
