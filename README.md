@@ -48,6 +48,7 @@ Run `chrome-control-mcp help` any time to see this list.
 | `url` | Prints the shared server URL with its token. |
 | `token` | Prints the secret token. |
 | `extension` | Prints the folder to load in `chrome://extensions`. |
+| `chrome` | Starts Chrome with the debugger banner hidden (`--silent-debugger-extension-api`). |
 | `uninstall` | Removes the native host registration, host files and the extension copy. |
 | `version` (`-v`, `--version`) | Prints the version. |
 | `help` (`-h`, `--help`) | Shows the command list. |
@@ -60,12 +61,13 @@ Run `chrome-control-mcp help` any time to see this list.
 | `--no-claude` | Do not touch Claude Desktop or Claude Code config. |
 | `--no-claude-desktop` / `--no-claude-code` | Skip just one of them. |
 | `--no-open` | Do not open `chrome://extensions` or copy the path to the clipboard. |
+| `--no-flag` | Do not add `--silent-debugger-extension-api` to Chrome shortcuts. |
 | `--force` | Replace an existing `chrome-control` entry in Claude Desktop config. |
 | `--extension-id <id>` | Allow another extension id, for example a Chrome Web Store build. |
 
 ## Setup in detail
 
-`setup` does four things and prints each step:
+`setup` does five things and prints each step:
 
 1. Creates the secret token in `~/.chrome-control-mcp/token` (never printed).
 2. Installs a small native host in `~/.chrome-control-mcp/native-host` and registers it for Chrome, Edge, Brave and Chromium.
@@ -73,6 +75,10 @@ Run `chrome-control-mcp help` any time to see this list.
 3. Copies the extension to `~/.chrome-control-mcp/extension` (a stable folder that survives package updates).
 4. Adds `chrome-control` to Claude Desktop (a backup `.bak-chrome-control` is saved next to the config) and to Claude Code,
    when they are installed.
+
+5. Hides Chrome's "started debugging this browser" banner by adding `--silent-debugger-extension-api` to your Chrome, Edge and
+   Brave shortcuts (desktop, Start menu and taskbar on Windows; user launchers on Linux; on macOS use `chrome-control-mcp chrome`).
+   Fully quit Chrome and reopen it from a patched shortcut for this to take effect. Skip it with `--no-flag`.
 
 It is safe to run again. Existing entries are left alone unless you pass `--force`.
 
@@ -161,13 +167,15 @@ A new background tab opens only when no tab for that site exists. Pass `forceNew
 
 ## Hide the yellow debugging banner
 
-Chrome shows "started debugging this browser" while an extension is attached. To hide it, fully quit Chrome
-and start it with the flag:
+Chrome shows "started debugging this browser" with a Cancel button while an extension is attached. An extension cannot hide it;
+only a Chrome startup flag can. `setup` adds the flag for you (see above). To do it by hand, add this to the Chrome shortcut's
+Target field, or run `chrome-control-mcp chrome`:
 
     chrome.exe --silent-debugger-extension-api
 
-Add the flag to the Chrome shortcut's Target field. Turn off "Continue running background apps" in
-`chrome://settings/system` so Chrome really quits.
+Fully quit Chrome first and turn off "Continue running background apps" in `chrome://settings/system` so it really quits.
+Check `chrome://version`: the flag must appear in the Command Line row. Chrome opened from a shortcut without the flag, or by
+clicking a link in another app, still shows the banner.
 
 ## Safety
 
@@ -195,7 +203,7 @@ Add the flag to the Chrome shortcut's Target field. Turn off "Continue running b
 | Extension does not turn on by itself | Run `chrome-control-mcp setup`, then reload the extension. Or paste the output of `chrome-control-mcp token` in the popup. |
 | Port 8765 or 8766 is in use | Set `CHROME_BRIDGE_PORT` or `CHROME_BRIDGE_HTTP_PORT` and run `setup` again. |
 | `chrome-control-mcp` is not found after global install | Open a new terminal. Check that the npm global bin folder is on your PATH (`npm prefix -g`). |
-| Yellow "debugging" banner | See [Hide the yellow debugging banner](#hide-the-yellow-debugging-banner). |
+| Yellow "debugging" banner is still there | Quit Chrome fully, reopen from a patched shortcut or run `chrome-control-mcp chrome`. See [Hide the yellow debugging banner](#hide-the-yellow-debugging-banner). |
 | Setup did not edit Claude config | Use [Install by hand](#install-by-hand). |
 
 ## Update and uninstall

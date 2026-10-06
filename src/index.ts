@@ -26,11 +26,12 @@ const HELP = `chrome-control-mcp: let Claude control your Chrome.
 Usage: chrome-control-mcp <command>
 
   setup        One-time install: native host, extension copy, Claude config. Opens chrome://extensions.
-               Options: --no-claude, --no-claude-desktop, --no-claude-code, --no-open, --force, --extension-id <id>
+               Options: --no-claude, --no-claude-desktop, --no-claude-code, --no-open, --no-flag, --force, --extension-id <id>
   serve        Run one shared server for many clients (http://127.0.0.1:8766/mcp)
   url          Print the shared server URL with its token
   token        Print the secret token
   extension    Print the folder to load in chrome://extensions
+  chrome       Start Chrome with the debugger banner hidden (--silent-debugger-extension-api)
   uninstall    Remove the native host and the extension copy
   version      Print the version
   help         Show this help
@@ -56,6 +57,15 @@ if (cmd === "extension") {
 if (cmd === "url") {
   console.log(`http://127.0.0.1:${process.env.CHROME_BRIDGE_HTTP_PORT ?? 8766}/mcp?token=${loadToken()}`);
   process.exit(0);
+}
+if (cmd === "chrome") {
+  try {
+    (await import("./setup.js")).launchChrome();
+    process.exit(0);
+  } catch (e) {
+    console.error(`Error: ${(e as Error).message}`);
+    process.exit(1);
+  }
 }
 if (cmd === "setup" || cmd === "uninstall") {
   try {

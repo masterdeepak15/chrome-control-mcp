@@ -1,7 +1,7 @@
 import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { loadToken } from "./bridge.js";
 
@@ -35,10 +35,11 @@ interface Opts {
   claudeCode: boolean;
   force: boolean;
   open: boolean;
+  flag: boolean;
 }
 function parseArgs(args: string[]): Opts {
   // By default setup also adds the MCP to Claude Desktop and Claude Code when they are installed.
-  const o: Opts = { extensionIds: [DEV_EXTENSION_ID], claudeDesktop: true, claudeCode: true, force: false, open: true };
+  const o: Opts = { extensionIds: [DEV_EXTENSION_ID], claudeDesktop: true, claudeCode: true, force: false, open: true, flag: true };
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === "--all") o.claudeDesktop = o.claudeCode = true;
@@ -49,6 +50,7 @@ function parseArgs(args: string[]): Opts {
     else if (a === "--claude-code") o.claudeCode = true;
     else if (a === "--force") o.force = true;
     else if (a === "--no-open") o.open = false;
+    else if (a === "--no-flag") o.flag = false;
     else if (a === "--extension-id" || a.startsWith("--extension-id=")) {
       const id = a.includes("=") ? a.split("=")[1] : args[++i];
       if (!/^[a-p]{32}$/.test(id ?? "")) throw new Error(`Invalid extension id "${id}". It must be 32 letters from a to p.`);
@@ -169,6 +171,62 @@ function openExtensionsPage(): boolean {
       ? spawnSync("open", ["-a", "Google Chrome", url], { stdio: "ignore" })
       : spawnSync("google-chrome", [url], { stdio: "ignore" });
   return r.status === 0;
+}
+
+export const DEBUG_FLAG = "--silent-debugger-extension-api";
+
+/** Windows: add the flag to Chrome, Edge and Brave shortcuts (desktop, Start menu, taskbar). */
+function patchWindowsShortcuts(log: (s: string) => void) {
+  const script = [
+    "$flag = '" + DEBUG_FLAG + "'",
+    "$dirs = @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('CommonDesktopDirectory'),",
+    "  [Environment]::GetFolderPath('Programs'), [Environment]::GetFolderPath('CommonPrograms'),",
+    "  (Join-Path $env:APPDATA 'Microsoft\\Internet Explorer\\Quick Launch\\User Pinned\\TaskBar')) | Where-Object { $_ -and (Test-Path $_) }",
+    "$sh = New-Object -ComObject WScript.Shell",
+    "foreach ($d in $dirs) { Get-ChildItem -Path $d -Filter *.lnk -Recurse -ErrorAction SilentlyContinue | ForEach-Object {",
+    "  try { $l = $sh.CreateShortcut($_.FullName)",
+    "    if ($l.TargetPath -match '(chrome|msedge|brave)\\.exe$') {",
+    "      if ($l.Arguments -notlike \"*$flag*\") { $l.Arguments = ($l.Arguments + ' ' + $flag).Trim(); $l.Save(); Write-Output ('patched|' + $_.FullName) }",
+    "      else { Write-Output ('already|' + $_.FullName) } } } catch { Write-Output ('failed|' + $_.FullName) } } }",
+  ].join("\n");
+  const f = join(tmpdir(), "chrome-control-shortcuts.ps1");
+  writeFileSync(f, script);
+  const r = spawnSync("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", f], { encoding: "utf8" });
+  rmSync(f, { force: true });
+  const rows = String(r.stdout || "").split(String.fromCharCode(10)).map((l) => l.trim()).filter(Boolean).map((l) => l.split("|"));
+  const n = (k: string) => rows.filter((x) => x[0] === k).length;
+  log(`   Shortcuts patched: ${n("patched")}, already set: ${n("already")}, could not edit: ${n("failed")}`);
+  if (n("failed")) log("   (Shortcuts in shared folders may need an administrator. Add the flag to them by hand.)");
+  if (!rows.length) log("   No Chrome shortcuts found. Start Chrome with: chrome-control-mcp chrome");
+}
+
+/** Linux: user-level copies of the .desktop launchers with the flag added. */
+function patchLinuxLaunchers(log: (s: string) => void) {
+  const out = join(homedir(), ".local", "share", "applications");
+  let n = 0;
+  for (const name of ["google-chrome.desktop", "microsoft-edge.desktop", "brave-browser.desktop", "chromium.desktop"]) {
+    const src = ["/usr/share/applications", "/var/lib/snapd/desktop/applications"].map((d) => join(d, name)).find(existsSync);
+    if (!src) continue;
+    const txt = readFileSync(src, "utf8").replace(/^(Exec=.*)$/gm, (l) => (l.includes(DEBUG_FLAG) ? l : l.replace(/(Exec=\S+)/, `$1 ${DEBUG_FLAG}`)));
+    mkdirSync(out, { recursive: true });
+    writeFileSync(join(out, name), txt);
+    n++;
+  }
+  log(`   Launchers written to ${out}: ${n}`);
+}
+
+/** Start the browser with the debugger banner hidden. */
+export function launchChrome(): void {
+  const cands = WIN
+    ? [join(process.env.PROGRAMFILES ?? "", "Google", "Chrome", "Application", "chrome.exe"),
+       join(process.env["PROGRAMFILES(X86)"] ?? "", "Google", "Chrome", "Application", "chrome.exe"),
+       join(process.env.LOCALAPPDATA ?? "", "Google", "Chrome", "Application", "chrome.exe")]
+    : MAC ? ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"]
+    : ["/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium"];
+  const exe = cands.find(existsSync);
+  if (!exe) throw new Error("Chrome was not found. Start it yourself with the flag " + DEBUG_FLAG);
+  spawn(exe, [DEBUG_FLAG], { detached: true, stdio: "ignore" }).unref();
+  console.log(`Started Chrome with ${DEBUG_FLAG}. If Chrome was already running, quit it fully first and run this again.`);
 }
 
 export function runSetup(args: string[]) {
