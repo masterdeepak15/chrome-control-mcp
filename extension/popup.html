@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chrome Control MCP</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body class="state-off">
+  <div class="scan" aria-hidden="true"></div>
+  <main class="frame">
+    <header class="boot b1">
+      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="14 6"/>
+        <circle cx="16" cy="16" r="7" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".7"/>
+        <circle cx="16" cy="16" r="2.6" fill="currentColor"/>
+      </svg>
+      <div class="titles">
+        <h1>CHROME CONTROL</h1>
+        <p>NEURAL LINK <i>//</i> MCP BRIDGE</p>
+      </div>
+      <span class="ver" id="ver">v0.0.0</span>
+    </header>
+
+    <section class="core boot b2" aria-live="polite">
+      <svg class="reactor" viewBox="0 0 200 200" aria-hidden="true">
+        <defs>
+          <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="var(--accent)" stop-opacity=".55"/>
+            <stop offset="60%" stop-color="var(--accent)" stop-opacity=".12"/>
+            <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
+          </radialGradient>
+          <linearGradient id="sweep" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="var(--accent)" stop-opacity="0"/>
+            <stop offset="100%" stop-color="var(--accent)" stop-opacity=".55"/>
+          </linearGradient>
+        </defs>
+        <circle cx="100" cy="100" r="64" fill="url(#glow)"/>
+        <g class="ring r-ticks" fill="none" stroke="var(--accent)">
+          <circle cx="100" cy="100" r="94" stroke-width="5" stroke-dasharray="1.2 6.4" opacity=".75"/>
+        </g>
+        <g class="ring r-slow" fill="none" stroke="var(--accent)">
+          <circle cx="100" cy="100" r="84" stroke-width="2" stroke-dasharray="70 14 14 14" opacity=".9"/>
+        </g>
+        <g class="ring r-rev" fill="none" stroke="var(--accent)">
+          <circle cx="100" cy="100" r="72" stroke-width="3.5" stroke-dasharray="110 30" opacity=".95"/>
+        </g>
+        <circle cx="100" cy="100" r="58" fill="none" stroke="var(--accent)" stroke-width="1" opacity=".55"/>
+        <g class="ring r-sweep">
+          <path d="M100 100 L100 42 A58 58 0 0 1 150.2 71 Z" fill="url(#sweep)"/>
+        </g>
+        <g stroke="var(--accent)" stroke-width="1.4" opacity=".8">
+          <line x1="100" y1="2" x2="100" y2="14"/><line x1="100" y1="186" x2="100" y2="198"/>
+          <line x1="2" y1="100" x2="14" y2="100"/><line x1="186" y1="100" x2="198" y2="100"/>
+        </g>
+      </svg>
+      <div class="readout">
+        <div class="word" id="word">STANDBY</div>
+        <div class="subtxt" id="sub">LINK DISENGAGED</div>
+      </div>
+    </section>
+
+    <section class="boot b3">
+      <button id="engage" class="engage" role="switch" aria-checked="false" type="button">
+        <span class="knob" aria-hidden="true"></span>
+        <span class="lbl" id="engageLbl">ENGAGE LINK</span>
+      </button>
+    </section>
+
+    <section class="telemetry boot b4">
+      <div class="cell"><span>PORT</span><b id="tPort">8765</b></div>
+      <div class="cell"><span>ACCESS KEY</span><b id="tKey">MISSING</b></div>
+      <div class="cell"><span>TABS LINKED</span><b id="tTabs">0</b></div>
+      <div class="cell"><span>COMMANDS</span><b id="tCmds">0</b></div>
+    </section>
+    <div class="last boot b4"><span class="chev">LAST &gt;</span> <span id="tLast">awaiting input</span><i class="cursor"></i></div>
+
+    <details class="adv boot b5">
+      <summary>ADVANCED CONFIG</summary>
+      <label>ACCESS KEY
+        <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="synced by setup. paste only if needed">
+      </label>
+      <label>PORT
+        <input id="port" type="number" min="1" max="65535" placeholder="8765">
+      </label>
+      <label>TARGET SCOPE
+        <textarea id="sites" rows="3" spellcheck="false" placeholder="example.com, github.com&#10;empty = all http/https sites"></textarea>
+      </label>
+    </details>
+
+    <footer class="boot b5">
+      <span class="dot" aria-hidden="true"></span>
+      <span>LOCAL ONLY &middot; 127.0.0.1</span>
+      <span class="scope" id="scope">ALL SITES</span>
+    </footer>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

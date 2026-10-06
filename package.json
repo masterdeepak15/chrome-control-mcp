@@ -1,0 +1,48 @@
+{
+    "name":  "chrome-control-mcp",
+    "version":  "0.4.0",
+    "description":  "MCP server that controls Chrome (DevTools Protocol) through a companion extension, in the background.",
+    "type":  "module",
+    "bin":  {
+                "chrome-control-mcp":  "dist/index.js"
+            },
+    "files":  [
+                  "dist",
+                  "extension",
+                  "README.md",\n    "start-server.cmd"\n  ],
+    "scripts":  {
+                    "build":  "tsc \u0026\u0026 node -e \"require(\u0027fs\u0027).chmodSync(\u0027dist/index.js\u0027, 0o755)\"",
+                    "prepublishOnly":  "npm run build"
+                },
+    "keywords":  [
+                     "mcp",
+                     "chrome",
+                     "devtools",
+                     "cdp",
+                     "claude"
+                 ],
+    "license":  "MIT",
+    "engines":  {
+                    "node":  "\u003e=18"
+                },
+    "dependencies":  {
+                         "@modelcontextprotocol/sdk":  "^1.12.0",
+                         "ws":  "^8.18.0",
+                         "zod":  "^3.25.0"
+                     },
+    "devDependencies":  {
+                            "@types/node":  "^22.0.0",
+                            "@types/ws":  "^8.5.0",
+                            "typescript":  "^5.6.0"
+                        },
+    "repository":  {
+                       "type":  "git",
+                       "url":  "git+https://github.com/masterdeepak15/chrome-control-mcp.git"
+                   },
+    "homepage":  "https://github.com/masterdeepak15/chrome-control-mcp#readme",
+    "bugs":  {
+                 "url":  "https://github.com/masterdeepak15/chrome-control-mcp/issues"
+             },
+    "author":  "Deepak Chougale"
+}
+

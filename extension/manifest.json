@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Chrome Control MCP",
+  "version": "0.3.1",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3XWeG30/F9rOsGE8oDKHo050RzhzUPzbMXBjKbdUvdtheBSJf2YaLNVbzHDPHM6XPUWwfZ+WCy645Q/uCyTOe+9sBcxw7ihhEGcNw+RSlFa6vIVV/LECcSgYgMFD94Bn5+M0yW7WCNrRxC/hUYW2nz4r/NnPdLDeeyuEh6EOcq4+VQe4Cl5bpBzmSfnGSXCWmk375lTgxXNDz0/0pnUT9lui2zd/Sns5GWNVM+9gJmokYPHTtl5RSGEaYYnQLx+uqR0/V7l0bvPZk8rxwrH951Ca2C3Bk6DZCv8ka1R1ArCgLoNUJc5EW6hIJk0U/O8oTBZF/rbMQEZdDE7bxnJzgwIDAQAB",
+  "description": "Lets a local MCP server control Chrome through DevTools. Gets its token from the local setup. Off until set up.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": ["debugger", "tabs", "storage", "alarms", "nativeMessaging"],
+  "background": { "service_worker": "background.js" },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Chrome Control MCP",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png"
+    }
+  }
+}

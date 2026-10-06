@@ -1,0 +1,7 @@
+node_modules
+dist
+.claude
+.gortex
+.mcp.json
+AGENTS.md
+CLAUDE.md
