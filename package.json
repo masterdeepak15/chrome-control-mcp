@@ -1,6 +1,6 @@
 {
     "name":  "chrome-control-mcp",
-    "version": "0.4.3",
+    "version": "0.5.0",
     "description":  "MCP server that controls Chrome (DevTools Protocol) through a companion extension, in the background.",
     "type":  "module",
     "bin":  {

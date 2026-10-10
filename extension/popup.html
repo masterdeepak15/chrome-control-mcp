@@ -80,6 +80,12 @@
       <label>ACCESS KEY
         <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="synced by setup. paste only if needed">
       </label>
+      <label>BROWSER NAME
+        <input id="name" type="text" maxlength="40" autocomplete="off" spellcheck="false" placeholder="tells your Chromes apart, for example office-pc">
+      </label>
+      <label>SERVER HOST
+        <input id="host" type="text" autocomplete="off" spellcheck="false" placeholder="empty = this PC (127.0.0.1). or a domain / IP of another PC">
+      </label>
       <label>PORT
         <input id="port" type="number" min="1" max="65535" placeholder="8765">
       </label>
@@ -90,7 +96,7 @@
 
     <footer class="boot b5">
       <span class="dot" aria-hidden="true"></span>
-      <span>LOCAL ONLY &middot; 127.0.0.1</span>
+      <span id="where">LOCAL ONLY &middot; 127.0.0.1</span>
       <span class="scope" id="scope">ALL SITES</span>
     </footer>
   </main>

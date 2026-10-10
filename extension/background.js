@@ -1,5 +1,51 @@
 // Chrome Control MCP - background service worker (MV3)
-const DEFAULTS = { enabled: false, token: "", port: 8765, sites: "" };
+const DEFAULTS = { enabled: false, token: "", host: "", port: 8765, sites: "", name: "" };
+
+// ---------- the name of this Chrome ----------
+// With several Chromes connected, this name tells them apart. A random name is made once and you can change it in the popup.
+let nameInit = null;
+function ensureName() {
+  if (!nameInit) {
+    nameInit = (async () => {
+      const { name } = await chrome.storage.local.get("name");
+      if (name) return name;
+      const n = "chrome-" + Math.random().toString(16).slice(2, 6);
+      await chrome.storage.local.set({ name: n });
+      return n;
+    })();
+  }
+  return nameInit;
+}
+// Another Chrome took our name: stop reconnecting (it would kick the other one every minute) until something changes.
+let nameTaken = false;
+
+// ---------- where the MCP server runs ----------
+// Empty host = this computer (127.0.0.1). A domain or IP connects this Chrome to an MCP server on another PC.
+// Write "wss://name" to use TLS (for example behind a reverse proxy). The default scheme is ws://.
+const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+
+function parseTarget(c) {
+  let raw = String(c.host || "").trim();
+  let scheme = "ws";
+  const m = raw.match(/^(wss?):\/\//i);
+  if (m) {
+    scheme = m[1].toLowerCase();
+    raw = raw.slice(m[0].length);
+  }
+  raw = raw.replace(/\/+$/, "");
+  if (!raw) raw = "127.0.0.1";
+  if (/^[0-9a-f:]*:[0-9a-f:]*$/i.test(raw)) raw = `[${raw}]`; // bare IPv6
+  const valid = /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/i.test(raw) || /^\[[0-9a-f:.]+\]$/i.test(raw);
+  if (!valid) return null;
+  const port = Number(c.port) || 8765;
+  const url = `${scheme}://${raw}:${port}`;
+  try {
+    new URL(url);
+  } catch {
+    return null;
+  }
+  return { url, label: `${raw}:${port}`, local: LOCAL_HOSTS.has(raw.toLowerCase()) };
+}
 
 let ws = null;
 let keepTimer = null;
@@ -232,12 +278,19 @@ function connect() {
 
 async function doConnect() {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
-  await syncFromHost();
+  // The native host only knows this computer's token and port, so it is used only for a local target.
+  // For a remote server it would overwrite the token and port you typed.
+  await ensureName();
+  const target0 = parseTarget(await cfg());
+  if (target0 && target0.local) await syncFromHost();
   const c = await cfg();
   if (!c.enabled) return setStatus("off");
+  const target = parseTarget(c);
+  if (!target) return setStatus("bad host");
   if (!c.token) return setStatus("no token");
+  if (nameTaken) return setStatus("name in use");
   setStatus("connecting");
-  const sock = new WebSocket(`ws://127.0.0.1:${c.port}/?token=${encodeURIComponent(c.token)}`);
+  const sock = new WebSocket(`${target.url}/?token=${encodeURIComponent(c.token)}&name=${encodeURIComponent(c.name)}`);
   ws = sock;
   sock.onopen = () => {
     stats = { attached: attached.size, commands: 0, last: "", lastAt: 0 };
@@ -248,12 +301,16 @@ async function doConnect() {
   };
   sock.onmessage = (e) => onMessage(e.data);
   sock.onerror = () => {};
-  sock.onclose = async () => {
+  sock.onclose = async (ev) => {
     if (ws !== sock) return;
     ws = null;
     clearInterval(keepTimer);
     await detachAll();
     const { enabled } = await cfg();
+    if (ev && ev.code === 4001) {
+      nameTaken = true;
+      return setStatus("name in use");
+    }
     setStatus(enabled ? "disconnected" : "off");
     if (enabled) {
       clearTimeout(retryTimer);
@@ -275,7 +332,9 @@ async function disconnect() {
 
 chrome.storage.onChanged.addListener(async (ch) => {
   const changed = (k) => ch[k] && ch[k].oldValue !== ch[k].newValue;
-  if (changed("enabled") || changed("token") || changed("port")) {
+  if (changed("host")) lastHostSync = 0; // going back to local: read the local token again right away
+  if (changed("name") || changed("enabled") || changed("host") || changed("port") || changed("token")) nameTaken = false;
+  if (changed("enabled") || changed("token") || changed("host") || changed("port") || changed("name")) {
     await disconnect();
     await connect();
   }

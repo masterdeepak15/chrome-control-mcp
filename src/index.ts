@@ -11,7 +11,7 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { gzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
-import { PORT, bridgeInfo, call, cdp, loadToken, sleep, startBridge } from "./bridge.js";
+import { PORT, bridgeInfo, call, cdp, listBrowsers, loadToken, sleep, startBridge } from "./bridge.js";
 import { st, waitForEvent } from "./state.js";
 import { takeSnapshot } from "./snapshot.js";
 import {
@@ -27,7 +27,13 @@ Usage: chrome-control-mcp <command>
 
   setup        One-time install: native host, extension copy, Claude config. Opens chrome://extensions.
                Options: --no-claude, --no-claude-desktop, --no-claude-code, --no-open, --no-flag, --force, --extension-id <id>
-  serve        Run one shared server for many clients (http://127.0.0.1:8766/mcp)
+  serve        Run one shared server for many clients (http://127.0.0.1:8766/mcp) in this terminal
+  start        Run that shared server in the background
+  stop         Stop the background server (--force if it does not answer)
+  restart      Stop and start it again
+  status       Show if it is running, its clients and the Chromes connected (exit code 0 when running)
+  logs         Show the end of its log (-n 100 for more lines, -f to follow)
+               All of start, stop, restart, status and logs also work as: chrome-control-mcp daemon <command>
   url          Print the shared server URL with its token
   token        Print the secret token
   extension    Print the folder to load in chrome://extensions
@@ -62,6 +68,16 @@ if (cmd === "chrome") {
   try {
     (await import("./setup.js")).launchChrome();
     process.exit(0);
+  } catch (e) {
+    console.error(`Error: ${(e as Error).message}`);
+    process.exit(1);
+  }
+}
+if (cmd === "daemon" || cmd === "start" || cmd === "stop" || cmd === "restart" || cmd === "status" || cmd === "logs") {
+  try {
+    const m = await import("./daemon.js");
+    const viaDaemon = cmd === "daemon";
+    process.exit(await m.runDaemon(viaDaemon ? process.argv[3] : cmd, process.argv.slice(viaDaemon ? 4 : 3)));
   } catch (e) {
     console.error(`Error: ${(e as Error).message}`);
     process.exit(1);
@@ -118,6 +134,11 @@ async function page(a: any): Promise<number> {
   if (a?.pageId != null) return a.pageId;
   if (selected != null) return selected;
   const tabs = await listTabs();
+  // With several Chromes, guessing a page could act on the wrong computer. Make the caller choose.
+  const chromes = [...new Set(tabs.map((t) => t.browser).filter(Boolean))];
+  if (chromes.length > 1) {
+    throw new Error(`Several Chromes are connected (${chromes.join(", ")}). Call list_pages, then select_page or pass pageId.`);
+  }
   const t = tabs.find((t) => t.active) ?? tabs[0];
   if (!t) throw new Error("No controllable page found. Open a tab first.");
   selected = t.id;
@@ -165,22 +186,31 @@ const pageId = z.number().optional().describe("Targets a specific page by ID. De
 const includeSnapshot = z.boolean().optional().describe("Whether to include a snapshot in the response. Default is false.");
 
 // ---------- bridge status ----------
-server.tool("status", "Is the Chrome extension connected? Also shows if this MCP instance owns the port or shares it as a peer.", {}, safe(async () => {
+server.tool("status", "Is the Chrome extension connected? Also shows if this MCP instance owns the port or shares it as a peer, and which named Chromes are connected.", {}, safe(async () => {
   const i = await bridgeInfo();
   return text({ connected: i.extension, ...i, port: PORT, selectedPage: selected });
+}));
+
+server.tool("list_browsers", "List the named Chromes connected to this server. Use a name as the browser option of new_page when more than one is connected.", {}, safe(async () => {
+  const b = await listBrowsers();
+  if (!b.length) return text("No Chrome is connected. Open the extension popup on a Chrome and turn it ON.");
+  return text("## Connected Chromes\n" + b.map((x) => `${x.name} (connected ${new Date(x.since).toLocaleString()})`).join("\n"));
 }));
 
 server.tool("cdp", "Send any raw Chrome DevTools Protocol command to a page.", {
   pageId, method: z.string().describe("e.g. DOM.getDocument"), params: z.record(z.any()).default({}),
 }, safe(async (a) => text(await cdp(await page(a), a.method, a.params))));
 
-server.tool("reload_bridge_extension", "Reload the Chrome Control extension (use after updating its files).", {}, safe(async () => text(await call("ext.reload"))));
+server.tool("reload_bridge_extension", "Reload the Chrome Control extension (use after updating its files).", {
+  browser: z.string().optional().describe("Name of the Chrome. Needed only when more than one is connected."),
+}, safe(async (a) => text(await call("ext.reload", { browser: a.browser }))));
 
 // ---------- navigation ----------
-server.tool("list_pages", "Get a list of pages open in the browser.", {}, safe(async () => {
+server.tool("list_pages", "Get a list of pages open in the browser. With several Chromes connected, each page shows which Chrome it belongs to.", {}, safe(async () => {
   const tabs = await listTabs();
   if (!tabs.length) return text("No pages available.");
-  return text("## Pages\n" + tabs.map((t) => `${t.id}: ${t.title} (${t.url})${t.id === selected ? " [selected]" : ""}${owned.has(t.id) ? " [opened by MCP]" : ""}${t.active ? " [active in browser]" : ""}`).join("\n"));
+  const many = new Set(tabs.map((t) => t.browser)).size > 1;
+  return text("## Pages\n" + tabs.map((t) => `${t.id}: ${t.title} (${t.url})${many ? ` [chrome: ${t.browser}]` : ""}${t.id === selected ? " [selected]" : ""}${owned.has(t.id) ? " [opened by MCP]" : ""}${t.active ? " [active in browser]" : ""}`).join("\n"));
 }));
 
 server.tool("select_page", "Select a page as a context for future tool calls.", {
@@ -198,9 +228,15 @@ server.tool("new_page", "Open a page. It first looks for an already open tab: sa
   forceNew: z.boolean().optional().describe("Skip the tab reuse check and always open a new tab."),
   isolatedContext: z.string().optional().describe("Not supported by the extension bridge. Ignored."),
   timeout: z.number().optional(),
+  browser: z.string().optional().describe("Name of the Chrome to open the page in (see list_browsers). Needed only when more than one Chrome is connected."),
 }, safe(async (a) => {
   const bg = a.background !== false;
-  const tabs = await listTabs();
+  const connected = await listBrowsers();
+  const all = connected.map((b) => b.name).join(", ");
+  if (a.browser == null && connected.length > 1) throw new Error(`Several Chromes are connected (${all}). Pass the browser option.`);
+  const chrome = a.browser ? connected.find((b) => b.name.toLowerCase() === String(a.browser).toLowerCase())?.name : undefined;
+  if (a.browser && !chrome) throw new Error(`No Chrome named "${a.browser}" is connected. Connected: ${all || "none"}.`);
+  const tabs = (await listTabs()).filter((t) => !chrome || t.browser === chrome);
   if (!a.forceNew) {
     const exact = tabs.find((t) => norm(t.url) === norm(a.url));
     if (exact) {
@@ -224,7 +260,7 @@ server.tool("new_page", "Open a page. It first looks for an already open tab: sa
       return text(`Reused existing tab ${pick.id} from the same site and navigated it to ${a.url}.${loaded ? "" : " Page was still loading when the wait ended."}`);
     }
   }
-  const t = await call("tabs.create", { url: a.url, active: !bg });
+  const t = await call("tabs.create", { url: a.url, active: !bg, browser: chrome });
   owned.add(t.id);
   selected = t.id;
   await attach(t.id);
@@ -754,7 +790,8 @@ async function serveHttp() {
     process.exit(1);
   });
   httpServer.listen(HTTP_PORT, "127.0.0.1", () => {
-    console.error(`[http] chrome-control MCP server: http://127.0.0.1:${HTTP_PORT}/mcp?token=${token}`);
+    // In the background the output goes to a log file, so the secret token stays out of it.
+    console.error(`[http] chrome-control MCP server: http://127.0.0.1:${HTTP_PORT}/mcp${process.env.CHROME_CONTROL_DAEMON ? ' (run "chrome-control-mcp url" for the link with its token)' : `?token=${token}`}`);
     console.error(`[bridge] Extension port: ${PORT}. Many clients can connect to the URL above at the same time.`);
   });
 }
