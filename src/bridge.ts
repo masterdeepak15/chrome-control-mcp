@@ -46,9 +46,10 @@ const browsers = new Map<string, Browser>(); // owner: connected Chromes by name
 const slotOf = new Map<string, number>(); // owner: name -> slot, stable while this process runs
 
 // Tab ids from two Chromes can be equal, so the owner makes them unique. The first Chrome to connect keeps its
-// real ids (slot 0). Every other Chrome gets an offset of slot * 1e9. Code outside this file sees one plain number
+// real ids (slot 0). Every other Chrome gets an offset of slot * 2^32. Code outside this file sees one plain number
 // per page, and that number also tells the owner which Chrome the page belongs to.
-const SLOT = 1_000_000_000;
+// Real tab ids are 32-bit and can be large (over 1.6 billion in practice), so the offset must be 2^32, not a round 1e9.
+const SLOT = 2 ** 32;
 const enc = (slot: number, tab: number) => slot * SLOT + tab;
 const dec = (id: number) => ({ slot: Math.floor(id / SLOT), tab: id % SLOT });
 const bySlot = (slot: number) => [...browsers.values()].find((b) => b.slot === slot);
